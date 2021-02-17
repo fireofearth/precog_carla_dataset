@@ -10,6 +10,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import math
 
 # The colors.
 COLORS = """#377eb8
@@ -29,21 +30,36 @@ def plot_datum(datum, meters_max=50):
     fig, axes = plt.subplots(2, 2, figsize=(10,10))
     bev_side_pixels = datum.overhead_features.shape[0] / 2.
     bev_meters = bev_side_pixels / datum.lidar_params['pixels_per_meter'] 
-    
+    size = 100
     for axidx, ax in enumerate(axes.ravel()):
         flabel = None if axidx > 0 else 'Car 1 future'
         plabel = None if axidx > 0 else 'Car 1 past'
-        ax.scatter(datum.player_future[:,0], datum.player_future[:,1], label=flabel, marker='s', facecolor='None', edgecolor=COLORS[0])
-        ax.scatter(datum.player_past[:,0], datum.player_past[:,1], label=plabel, marker='d', facecolor='None', edgecolor=COLORS[0])
+        ax.scatter(datum.player_future[:,0], datum.player_future[:,1], s=size,
+                label=flabel, marker='s', facecolor='None', edgecolor=COLORS[0])
+        ax.scatter(datum.player_past[:,0], datum.player_past[:,1], s=size,
+                label=plabel, marker='d', facecolor='None', edgecolor=COLORS[0])
         for other_idx, (af, ap) in enumerate(zip(datum.agent_futures, datum.agent_pasts)):
             flabel = None if axidx > 0 else 'Car {} future'.format(other_idx + 2)
             plabel = None if axidx > 0 else 'Car {} past'.format(other_idx + 2)
-            ax.scatter(af[:,0], af[:,1], label=flabel, facecolor='None', edgecolor=COLORS[other_idx + 1], marker='s')
-            ax.scatter(ap[:,0], ap[:,1], label=plabel, facecolor='None', edgecolor=COLORS[other_idx + 1], marker='d')
+            ax.scatter(af[:,0], af[:,1], s=size,
+                    label=flabel, facecolor='None', edgecolor=COLORS[other_idx + 1], marker='s')
+            ax.scatter(ap[:,0], ap[:,1], s=size,
+                    label=plabel, facecolor='None', edgecolor=COLORS[other_idx + 1], marker='d')
         ax.imshow(datum.overhead_features[...,axidx], extent=(-bev_meters, bev_meters, bev_meters, -bev_meters), cmap='Reds')
         ax.set_title("BEV channel {}".format(axidx))
         ax.set_xlim([-meters_max, meters_max])
         ax.set_ylim([meters_max, -meters_max])
+    
+    pasts = np.append(datum.player_past[None], datum.agent_pasts, axis=0)
+    pasts = pasts[...,:2]
+    yaws = np.append(np.array(datum.player_yaw)[None], datum.agent_yaws, axis=0)
+    current = pasts[:, -1, :]
+    for k, (pos, yaw) in enumerate(zip(current, yaws)):
+        axes[0][0].arrow(pos[0], pos[1],
+                5*math.cos(math.radians(yaw)),
+                5*math.sin(math.radians(yaw)),
+                width=0.5, facecolor=COLORS[k])
+
     fig.tight_layout()
     fig.legend(bbox_to_anchor=(1., 1.), loc="upper left", fontsize=14)
     return fig
@@ -67,6 +83,7 @@ def from_json_dict(json_datum):
     """
     pp = attrdict.AttrDict()
     for k, v in json_datum.items():
+        print(k)
         if isinstance(v, list):
             pp[k] = np.asarray(v)
         elif isinstance(v, dict) or isinstance(v, int) or isinstance(v, str):
